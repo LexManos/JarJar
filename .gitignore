@@ -30,3 +30,5 @@
 /out.log
 /**/logs/
 /test_results.html
+/jarjar-gradle/src/functionalTest/generated/
+/jarjar-gradle/.idea/
