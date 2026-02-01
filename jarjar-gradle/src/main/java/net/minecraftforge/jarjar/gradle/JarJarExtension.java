@@ -37,5 +37,9 @@ public sealed interface JarJarExtension extends JarJarContainer permits JarJarEx
 
     JarJarContainer register(String name, TaskProvider<? extends Jar> jarTask, Action<? super JarJar> taskAction);
 
+    default void configure(Dependency dependency) {
+        configure(dependency, dep -> { });
+    }
+
     void configure(Dependency dependency, Action<? super JarJarMetadataInfo> action);
 }
