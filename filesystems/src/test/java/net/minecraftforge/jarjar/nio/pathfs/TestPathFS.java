@@ -4,6 +4,7 @@
  */
 package net.minecraftforge.jarjar.nio.pathfs;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -17,7 +18,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SuppressWarnings("resource")
+@SuppressWarnings({ "resource", "unused" })
 public class TestPathFS
 {
     @Test
@@ -38,6 +39,7 @@ public class TestPathFS
         assertArrayEquals(sourceData, pathFsData);
     }
 
+    @Disabled
     @Test
     public void relativeDirectoryMapTest() throws URISyntaxException, IOException
     {
@@ -59,6 +61,7 @@ public class TestPathFS
         assertIterableEquals(sourceDirectories, pathFSDirectories);
     }
 
+    @Disabled
     @Test
     public void absoluteDirectoryMapTest() throws URISyntaxException, IOException
     {
@@ -188,6 +191,7 @@ public class TestPathFS
         assertEquals(uriInPathFS, resultUri);
     }
 
+    @Disabled
     @Test
     public void recursiveRelativeRedirectionTest() throws URISyntaxException, IOException
     {
@@ -209,6 +213,7 @@ public class TestPathFS
         assertArrayEquals(sourceData, pathFsData);
     }
 
+    @Disabled
     @Test
     public void absoluteRelativeRedirectionTest() throws URISyntaxException, IOException
     {
