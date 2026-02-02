@@ -6,200 +6,175 @@ package net.minecraftforge.jarjar.gradle.tests;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.gradle.testkit.runner.BuildResult;
-import org.gradle.testkit.runner.GradleRunner;
-import org.gradle.testkit.runner.TaskOutcome;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
-import org.junit.jupiter.api.extension.ExtensionContext;
-import org.junit.jupiter.api.extension.RegisterExtension;
-import org.junit.jupiter.api.io.CleanupMode;
-import org.junit.jupiter.api.io.TempDir;
+import java.util.List;
 
+import org.apache.maven.artifact.versioning.ArtifactVersion;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
+import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
+import org.apache.maven.artifact.versioning.VersionRange;
+import org.junit.jupiter.api.Test;
+
+import net.minecraftforge.jarjar.metadata.ContainedJarIdentifier;
 import net.minecraftforge.jarjar.metadata.ContainedJarMetadata;
+import net.minecraftforge.jarjar.metadata.ContainedVersion;
 import net.minecraftforge.jarjar.metadata.Metadata;
 import net.minecraftforge.jarjar.metadata.MetadataIOHandler;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class FunctionalTests {
-    private static final String GRADLE_VERSION = "9.0.0";
+public class FunctionalTests extends FunctionalTestsBase {
     private static final String JAR = ":jar";
     private static final String JARJAR = ":jarJar";
     private static final String METADATA = "META-INF/jarjar/metadata.json";
 
-    @TempDir(cleanup = CleanupMode.ON_SUCCESS)
-    private Path projectDir;
-
-    @RegisterExtension
-    AfterTestExecutionCallback afterTestExecutionCallback = this::after;
-
-    private void after(ExtensionContext context) throws Exception {
-        if (context.getExecutionException().isPresent())
-            System.out.println(context.getDisplayName() + " Failed: " + projectDir);
-
-    }
-
-    private static final String BASIC_SETTINGS_GROOVY = """
-        rootProject.name = 'test'
-        """;
-
-    private static final String BASIC_SETTINGS_KOTLIN = """
-        rootProject.name = "test"
-        """;
-
-    private static final String BASIC_BUILD_GROOVY = """
-        plugins {
-          id 'java'
-          id 'net.minecraftforge.jarjar'
-        }
-
-        repositories {
-          mavenCentral();
-        }
-        """;
-
-    private static final String BASIC_BUILD_KOTLIN = """
-        plugins {
-          id("java")
-          id("net.minecraftforge.jarjar")
-        }
-
-        repositories {
-          mavenCentral()
-        }
-        """;
-
-    private void settingsFile(String content) throws IOException {
-        writeFile(projectDir.resolve("settings.gradle"), content);
-    }
-
-    private void kotlinSettingsFile(String content) throws IOException {
-        writeFile(projectDir.resolve("settings.gradle.kts"), content);
-    }
-
-    private void buildFile(String content) throws IOException {
-        writeFile(projectDir.resolve("build.gradle"), content);
-    }
-
-    private void kotlinBuildFile(String content) throws IOException {
-        writeFile(projectDir.resolve("build.gradle.kts"), content);
-    }
-
-    private void writeFile(Path file, String content) throws IOException {
-        Files.createDirectories(file.getParent());
-        Files.writeString(file, content, StandardCharsets.UTF_8);
-    }
-
-    private BuildResult build(String... args) {
-        return GradleRunner.create()
-            .withGradleVersion(GRADLE_VERSION)
-            .withProjectDir(projectDir.toFile())
-            .withArguments(args)
-            .withPluginClasspath()
-            .build();
-    }
-
-    private static void assertTaskSuccess(BuildResult result, String task) {
-        assertTaskOutcome(result, task, TaskOutcome.SUCCESS);
-    }
-
-    private static void assertTaskFailed(BuildResult result, String task) {
-        assertTaskOutcome(result, task, TaskOutcome.FAILED);
-    }
-
-    private static void assertTaskOutcome(BuildResult result, String task, TaskOutcome expected) {
-        var info = result.task(task);
-        assertNotNull(info, "Could not find task `" + task + "` in build results");
-        assertEquals(expected, info.getOutcome());
-    }
-
-    private static byte[] readJarEntry(Path path, String name) throws IOException {
-        try (var fs = FileSystems.newFileSystem(path)) {
-            var target = fs.getPath(name);
-            assertTrue(Files.exists(target), "Archive " + path + " does not contain " + name);
-            return Files.readAllBytes(target);
-        }
+    public FunctionalTests() {
+        super("9.0.0");
     }
 
     @Test
     public void slimJarBuilds() throws IOException {
-        settingsFile(BASIC_SETTINGS_GROOVY);
-        buildFile(BASIC_BUILD_GROOVY);
-
-        var results = build(JAR);
-        assertTaskSuccess(results, JAR);
+        slimJarBuilds(new GroovyProject(projectDir));
     }
 
     @Test
     public void slimJarBuildsKotlin() throws IOException {
-        kotlinSettingsFile(BASIC_SETTINGS_KOTLIN);
-        kotlinBuildFile(BASIC_BUILD_KOTLIN);
+        slimJarBuilds(new KotlinProject(projectDir));
+    }
 
+    private void slimJarBuilds(GradleProject project) throws IOException {
+        project.simpleProject();
         var results = build(JAR);
         assertTaskSuccess(results, JAR);
     }
 
     @Test
     public void jarJarSimple() throws IOException {
-        settingsFile(BASIC_SETTINGS_GROOVY);
-        buildFile(BASIC_BUILD_GROOVY + """
-            jarJar.register()
-
-            dependencies {
-                jarJar('org.apache.maven:maven-artifact:3.9.11') {
-                    transitive = false
-                    jarJar.configure(it)
-                }
-            }
-            """);
-        jarJarSimpleShared();
+        jarJarSimple(new GroovyProject(projectDir));
     }
 
     @Test
     public void jarJarSimpleKotlin() throws IOException {
-        kotlinSettingsFile(BASIC_SETTINGS_KOTLIN);
-        kotlinBuildFile(BASIC_BUILD_KOTLIN + """
-            jarJar.register()
-
-            dependencies {
-                "jarJar"("org.apache.maven:maven-artifact:3.9.11") {
-                    isTransitive = false
-                    jarJar.configure(this)
-                }
-            }
-            """);
-        jarJarSimpleShared();
+        jarJarSimple(new KotlinProject(projectDir));
     }
 
-    private void jarJarSimpleShared() throws IOException {
+    private void jarJarSimple(GradleProject project) throws IOException {
+        project.simpleJarJardLibrary("org.apache.maven:maven-artifact:3.9.11");
+
         var results = build(JARJAR);
-        System.out.println(results.getOutput());
         assertTaskSuccess(results, JARJAR);
-        var all = projectDir.resolve("build/libs/test-all.jar");
-        assertTrue(Files.exists(all), "JarJar'd jar does not exist at: " + all);
-        readJarEntry(all, "META-INF/jarjar/maven-artifact-3.9.11.jar");
-        var meta = assertMetadataExists(all);
-        var jar = assertHasSingleJar(meta, "org.apache.maven:maven-artifact");
-        assertEquals("[3.9.11,)", jar.version().range().toString());
-        assertEquals("3.9.11", jar.version().artifactVersion().toString());
+
+        var expected = new Metadata(List.of(
+            new ContainedJarMetadata(
+                id("org.apache.maven", "maven-artifact"),
+                version(rangeSpec("[3.9.11,)"), "3.9.11"),
+                "META-INF/jarjar/maven-artifact-3.9.11.jar",
+                false
+            )
+        ));
+
+        var archive = projectDir.resolve("build/libs/test-all.jar");
+        assertTrue(Files.exists(archive), "JarJar'd jar does not exist at: " + archive);
+        readJarEntry(archive, expected.jars().get(0).path());
+        var actual = assertMetadataExists(archive);
+        assertMetadata(archive, expected, actual);
     }
 
-    private static Metadata assertMetadataExists(Path file) throws IOException {
+    @Test
+    public void libraryConstraint() throws IOException {
+        libraryConstraint(new GroovyProject(projectDir));
+    }
+
+    @Test
+    public void libraryConstraintKotlin() throws IOException {
+        libraryConstraint(new KotlinProject(projectDir));
+    }
+
+    private void libraryConstraint(GradleProject project) throws IOException {
+        project.libraryConstraint("org.apache.maven:maven-artifact:3.9.11");
+
+        var results = build(JARJAR);
+        assertTaskSuccess(results, JARJAR);
+
+        var expected = new Metadata(List.of(
+            new ContainedJarMetadata(
+                id("org.apache.maven", "maven-artifact"),
+                version(rangeSpec("[3.9.11,)"), "3.9.11"),
+                // It's a constraint, but for legacy reasons we still add the path
+                "META-INF/jarjar/maven-artifact-3.9.11.jar",
+                false
+            )
+        ));
+
+        var archive = projectDir.resolve("build/libs/test-all.jar");
+        assertTrue(Files.exists(archive), "JarJar'd jar does not exist at: " + archive);
+        // Make sure we don't actually ship the jar
+        assertFileMissing(archive, expected.jars().get(0).path());
+        var actual = assertMetadataExists(archive);
+        assertMetadata(archive, expected, actual);
+    }
+
+
+    // ==========================================================
+    //                          Helpers
+    // ==========================================================
+    protected static ContainedJarIdentifier id(String group, String artifact) {
+        return new ContainedJarIdentifier(group, artifact);
+    }
+    protected static VersionRange rangeSpec(String spec) {
+        try {
+            return VersionRange.createFromVersionSpec(spec);
+        } catch (InvalidVersionSpecificationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    protected static VersionRange range(String spec) {
+        return VersionRange.createFromVersion(spec);
+    }
+    protected static ArtifactVersion version(String version) {
+        return new DefaultArtifactVersion(version);
+    }
+    protected static ContainedVersion version(VersionRange range, String version) {
+        return new ContainedVersion(range, version(version));
+    }
+
+    protected static Metadata assertMetadataExists(Path file) throws IOException {
         var data = readJarEntry(file, METADATA);
         var meta = MetadataIOHandler.fromStream(new ByteArrayInputStream(data)).orElse(null);
         assertNotNull(meta, "Invalid metadata file was generated: \n" + new String(data));
         return meta;
     }
 
-    private static ContainedJarMetadata assertHasSingleJar(Metadata meta, String artifact) {
-        assertEquals(1, meta.jars().size(), "Jars did not contain expected list");
-        var jar = meta.jars().get(0);
-        assertEquals(artifact, jar.identifier().group() + ':' + jar.identifier().artifact());
-        return jar;
+    protected static void assertMetadata(Path archive, Metadata expected, Metadata actual) throws IOException {
+        assertEquals(expected.jars().size(), actual.jars().size(), "Metadata did not have the correct number of jars.");
+        for (var jar : expected.jars()) {
+            ContainedJarMetadata ajar = null;
+            for (var tmp : actual.jars()) {
+                if (jar.identifier().equals(tmp.identifier())) {
+                    ajar = tmp;
+                    break;
+                }
+            }
+            assertNotNull(ajar, "Could not find " + jar.identifier().group() + ':' + jar.identifier().artifact() + " in metadata");
+            assertMetadata(archive, jar, ajar);
+        }
+    }
+
+    protected static void assertMetadata(Path archive, ContainedJarMetadata expected, ContainedJarMetadata actual) throws IOException {
+        assertEquals(expected.identifier(), actual.identifier());
+        assertEquals(expected.path(), actual.path(), "Path");
+        assertEquals(expected.isObfuscated(), actual.isObfuscated(), "isObfusicated");
+        assertMetadata(expected.version(), actual.version());
+    }
+
+    protected static void assertMetadata(ContainedVersion expected, ContainedVersion actual) {
+        if (expected == null) {
+            assertNull(actual, "Expected null contained version, actual: " + actual);
+        } else {
+            assertNotNull(actual, "Expected non-null contained version");
+            assertEquals(expected.range(), actual.range(), "Invalid Range");
+            assertEquals(expected.artifactVersion(), actual.artifactVersion(), "Invalid ArtifactVersion");
+        }
     }
 }
